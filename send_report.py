@@ -4,6 +4,7 @@ import asyncio
 import fitz  # PyMuPDF
 from io import BytesIO
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from telegram import Bot
 
 # Configuration from environment variables
@@ -18,8 +19,9 @@ def get_ordinal_suffix(day):
     return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
 
 def get_formatted_date():
-    """Return date formatted like 'Jan 31st'"""
-    now = datetime.now()
+    """Return date formatted like 'Jan 31st' in Mountain Time"""
+    mountain_tz = ZoneInfo('America/Denver')
+    now = datetime.now(mountain_tz)
     day = now.day
     suffix = get_ordinal_suffix(day)
     return now.strftime(f'%b {day}{suffix}')
