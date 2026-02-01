@@ -16,7 +16,7 @@ jobs:
           python-version: '3.11'
           
       - name: Install dependencies
-        run: pip install python-telegram-bot requests PyMuPDF
+        run: pip install python-telegram-bot requests PyMuPDF beautifulsoup4
         
       - name: Send grooming report
         run: python send_report.py
