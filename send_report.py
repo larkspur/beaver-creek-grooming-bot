@@ -55,10 +55,10 @@ async def capture_snow_summary():
             await page.evaluate("window.scrollTo(0, 0)")
             await page.wait_for_timeout(500)
             
-            # Capture just the Snow Summary section at the top
-            # The section starts around y=100 (after header) and is about 180px tall
+            # Capture just the Snow Summary chart section
+            # The chart with bars starts after the header/nav (~y=200) and is about 220px tall
             screenshot_bytes = await page.screenshot(
-                clip={'x': 50, 'y': 100, 'width': 1100, 'height': 180}
+                clip={'x': 30, 'y': 195, 'width': 1140, 'height': 230}
             )
             
             await browser.close()
