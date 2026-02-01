@@ -108,7 +108,7 @@ async def get_opensnow_data():
         return {}
 
 def format_hourly_forecast(hourly):
-    """Format hourly forecast as readable text."""
+    """Format hourly forecast as mobile-friendly vertical list."""
     if not hourly:
         return None
     
@@ -126,18 +126,15 @@ def format_hourly_forecast(hourly):
     if num_hours == 0:
         return None
     
+    # Vertical format - one line per hour
     lines = []
-    lines.append("⏰ Time:  " + "  ".join(f"{times[i]:>5}" for i in range(num_hours)))
-    lines.append("🌡️ Temp:  " + "  ".join(f"{temps[i]:>4}°" for i in range(min(num_hours, len(temps)))))
-    
-    if feels and len(feels) >= num_hours:
-        lines.append("🥶 Feels: " + "  ".join(f"{feels[i]:>4}°" for i in range(num_hours)))
-    
-    if winds and len(winds) >= num_hours:
-        lines.append("💨 Wind:  " + "  ".join(f"{winds[i]:>5}" for i in range(num_hours)))
-    
-    if clouds and len(clouds) >= num_hours:
-        lines.append("☁️ Cloud: " + "  ".join(f"{clouds[i]:>4}%" for i in range(num_hours)))
+    for i in range(num_hours):
+        time = times[i] if i < len(times) else "?"
+        temp = temps[i] if i < len(temps) else "?"
+        feel = feels[i] if i < len(feels) else "?"
+        wind = winds[i] if i < len(winds) else "?"
+        
+        lines.append(f"{time}: {temp}° (feels {feel}°), {wind}")
     
     return "\n".join(lines)
 
