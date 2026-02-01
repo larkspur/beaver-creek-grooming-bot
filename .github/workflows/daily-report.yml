@@ -2,18 +2,23 @@ name: Send Beaver Creek Grooming Report
 
 on:
   schedule:
-      - cron: '45 13 * * *'
-        workflow_dispatch:
+    - cron: '45 13 * * *'  # 6:45 AM Mountain Time (UTC-7)
+  workflow_dispatch:  # Allow manual trigger for testing
 
-        jobs:
-          send-report:
-              runs-on: ubuntu-latest
-                  steps:
-                        - uses: actions/checkout@v4
-                              - uses: actions/setup-python@v5
-                                      with:
-                                                python-version: '3.11'
-                                                      - run: pip install python-telegram-bot requests
-                                                            - run: python send_report.py
-                                                                    env:
-                                                                              BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: pip install python-telegram-bot requests
+        
+      - name: Send grooming report
+        run: python send_report.py
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
