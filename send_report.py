@@ -20,7 +20,56 @@ OPENSNOW_URL = 'https://opensnow.com/location/beavercreek/snow-summary'
 # Email-to-SMS configuration
 SMTP_EMAIL = os.environ.get('SMTP_EMAIL')  # Your Gmail address
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')  # Gmail App Password
-SMS_RECIPIENTS = os.environ.get('SMS_RECIPIENTS', '')  # Comma-separated email-to-SMS addresses
+GOOGLE_SHEET_ID = os.environ.get('GOOGLE_SHEET_ID', '')  # Google Sheet ID with form responses
+
+# Carrier to email gateway mapping
+CARRIER_GATEWAYS = {
+    'att': '@txt.att.net',
+    'at&t': '@txt.att.net',
+    'verizon': '@vtext.com',
+    't-mobile': '@tmomail.net',
+    'tmobile': '@tmomail.net',
+    'sprint': '@messaging.sprintpcs.com',
+    'us cellular': '@email.uscc.net',
+    'cricket': '@sms.cricketwireless.net',
+    'metro': '@mymetropcs.com',
+    'metro pcs': '@mymetropcs.com',
+    'boost': '@sms.myboostmobile.com',
+    'boost mobile': '@sms.myboostmobile.com',
+}
+
+def get_recipients_from_sheet():
+    """Fetch SMS recipients from Google Sheet."""
+    if not GOOGLE_SHEET_ID:
+        print("Google Sheet ID not configured")
+        return []
+    
+    try:
+        # Public Google Sheet CSV export URL
+        url = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv"
+        response = requests.get(url)
+        response.raise_for_status()
+        
+        recipients = []
+        lines = response.text.strip().split('\n')
+        
+        # Skip header row
+        for line in lines[1:]:
+            parts = line.split(',')
+            if len(parts) >= 3:
+                # Assuming columns: Timestamp, Phone Number, Carrier
+                phone = re.sub(r'\D', '', parts[1])  # Remove non-digits
+                carrier = parts[2].lower().strip().strip('"')
+                
+                if phone and carrier in CARRIER_GATEWAYS:
+                    email = f"{phone}{CARRIER_GATEWAYS[carrier]}"
+                    recipients.append(email)
+                    print(f"Found recipient: {email}")
+        
+        return recipients
+    except Exception as e:
+        print(f"Error fetching recipients from sheet: {e}")
+        return []
 
 def send_sms(message):
     """Send SMS via email-to-SMS gateway."""
@@ -28,13 +77,11 @@ def send_sms(message):
         print("Email-to-SMS not configured, skipping...")
         return
 
-    if not SMS_RECIPIENTS:
-        print("No SMS recipients configured, skipping...")
-        return
-
-    recipients = [r.strip() for r in SMS_RECIPIENTS.split(',') if r.strip()]
+    # Get recipients from Google Sheet
+    recipients = get_recipients_from_sheet()
+    
     if not recipients:
-        print("No SMS recipients configured, skipping...")
+        print("No SMS recipients found, skipping...")
         return
 
     try:

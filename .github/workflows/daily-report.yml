@@ -27,4 +27,4 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMS_RECIPIENTS: ${{ secrets.SMS_RECIPIENTS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
