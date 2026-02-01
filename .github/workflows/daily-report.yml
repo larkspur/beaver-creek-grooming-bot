@@ -2,26 +2,30 @@ name: Send Beaver Creek Grooming Report
 
 on:
   schedule:
-    - cron: "30 13 * * *"
-  workflow_dispatch:
+      - cron: "30 13 * * *"
+        workflow_dispatch:
 
-jobs:
-  send-report:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          
-      - name: Install dependencies
-        run: |
-          pip install python-telegram-bot requests PyMuPDF playwright
-          playwright install chromium
-          playwright install-deps chromium
-        
-      - name: Send grooming report
-        run: python send_report.py
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        jobs:
+          send-report:
+              runs-on: ubuntu-latest
+                  steps:
+                        - uses: actions/checkout@v4
+
+                              - uses: actions/setup-python@v5
+                                      with:
+                                                python-version: '3.11'
+
+                                                      - name: Install dependencies
+                                                              run: |
+                                                                        pip install python-telegram-bot requests PyMuPDF playwright twilio
+                                                                                  playwright install chromium
+                                                                                            playwright install-deps chromium
+
+                                                                                                  - name: Send grooming report
+                                                                                                          run: python send_report.py
+                                                                                                                  env:
+                                                                                                                            BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+                                                                                                                                      TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+                                                                                                                                                TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+                                                                                                                                                          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+                                                                                                                                                                    SMS_RECIPIENTS: ${{ secrets.SMS_RECIPIENTS }}
