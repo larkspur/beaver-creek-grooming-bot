@@ -35,40 +35,34 @@ async def capture_snow_summary():
         
         async with async_playwright() as p:
             browser = await p.chromium.launch()
-            page = await browser.new_page(viewport={'width': 1400, 'height': 800})
+            page = await browser.new_page(viewport={'width': 1200, 'height': 800})
             
             await page.goto(OPENSNOW_URL, wait_until='networkidle')
             
-            # Wait for the snow summary section to load
-            await page.wait_for_timeout(2000)
+            # Wait for the page to fully load
+            await page.wait_for_timeout(3000)
             
-            # Find the snow summary section - it's the div with "Snow Summary" heading
-            # Look for the chart area with the snow data
-            snow_section = page.locator('div:has-text("Prev 11-15 Days")').first
+            # Dismiss any cookie banner if present
+            try:
+                cookie_btn = page.locator('text=Accept Cookies')
+                if await cookie_btn.count() > 0:
+                    await cookie_btn.click()
+                    await page.wait_for_timeout(500)
+            except:
+                pass
             
-            if await snow_section.count() > 0:
-                # Get the parent container that has all the snow data
-                # The chart is in a specific container
-                screenshot_bytes = await snow_section.screenshot()
-                await browser.close()
-                print("Snow summary captured successfully!")
-                return screenshot_bytes
-            else:
-                # Fallback: try to find by the PEAKS branding
-                snow_chart = page.locator('text=Powered by').locator('..')
-                if await snow_chart.count() > 0:
-                    # Go up to get the full chart
-                    parent = snow_chart.locator('..').locator('..')
-                    screenshot_bytes = await parent.screenshot()
-                    await browser.close()
-                    print("Snow summary captured successfully!")
-                    return screenshot_bytes
-                    
-            # Last fallback: screenshot the top portion of the page
+            # Scroll to top to ensure we capture the right area
             await page.evaluate("window.scrollTo(0, 0)")
-            screenshot_bytes = await page.screenshot(clip={'x': 0, 'y': 150, 'width': 1400, 'height': 250})
+            await page.wait_for_timeout(500)
+            
+            # Capture just the Snow Summary section at the top
+            # The section starts around y=100 (after header) and is about 180px tall
+            screenshot_bytes = await page.screenshot(
+                clip={'x': 50, 'y': 100, 'width': 1100, 'height': 180}
+            )
+            
             await browser.close()
-            print("Snow summary captured (fallback method)!")
+            print("Snow summary captured successfully!")
             return screenshot_bytes
             
     except Exception as e:
