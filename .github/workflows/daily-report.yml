@@ -1,0 +1,23 @@
+name: Send Beaver Creek Grooming Report
+
+on:
+  schedule:
+      - cron: '45 13 * * *'
+        workflow_dispatch:
+
+        jobs:
+          send-report:
+              runs-on: ubuntu-latest
+                  steps:
+                        - name: Checkout repository
+                                uses: actions/checkout@v4
+                                      - name: Set up Python
+                                              uses: actions/setup-python@v5
+                                                      with:
+                                                                python-version: '3.11'
+                                                                      - name: Install dependencies
+                                                                              run: pip install python-telegram-bot requests
+                                                                                    - name: Send grooming report
+                                                                                            env:
+                                                                                                      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+                                                                                                              run: python send_report.py
