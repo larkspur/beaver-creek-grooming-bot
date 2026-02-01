@@ -2,8 +2,10 @@ import os
 import re
 import requests
 import asyncio
+import smtplib
 import fitz  # PyMuPDF
 from io import BytesIO
+from email.mime.text import MIMEText
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Bot
@@ -14,6 +16,45 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 CHANNEL_ID = '@bcskireport'
 PDF_URL = 'https://grooming.lumiplan.pro/beaver-creek-grooming-map.pdf'
 OPENSNOW_URL = 'https://opensnow.com/location/beavercreek/snow-summary'
+
+# Email/SMS configuration
+SMTP_EMAIL = os.environ.get('SMTP_EMAIL')  # Your Gmail address
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')  # Gmail App Password
+SMS_RECIPIENTS = os.environ.get('SMS_RECIPIENTS', '')  # Comma-separated email-to-SMS addresses
+
+def send_sms(message):
+    """Send SMS via email-to-SMS gateway."""
+    if not SMTP_EMAIL or not SMTP_PASSWORD or not SMS_RECIPIENTS:
+        print("SMS not configured, skipping...")
+        return
+    
+    recipients = [r.strip() for r in SMS_RECIPIENTS.split(',') if r.strip()]
+    if not recipients:
+        print("No SMS recipients configured, skipping...")
+        return
+    
+    try:
+        print(f"Sending SMS to {len(recipients)} recipient(s)...")
+        
+        # Connect to Gmail SMTP
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        
+        for recipient in recipients:
+            msg = MIMEText(message)
+            msg['From'] = SMTP_EMAIL
+            msg['To'] = recipient
+            msg['Subject'] = ''  # SMS doesn't need subject
+            
+            server.sendmail(SMTP_EMAIL, recipient, msg.as_string())
+            print(f"SMS sent to {recipient}")
+        
+        server.quit()
+        print("All SMS messages sent successfully!")
+        
+    except Exception as e:
+        print(f"Error sending SMS: {e}")
 
 def get_ordinal_suffix(day):
     """Return the ordinal suffix for a day (1st, 2nd, 3rd, 4th, etc.)"""
@@ -179,7 +220,7 @@ async def send_grooming_report():
     if hourly_text:
         caption += f'\n\nHourly Forecast:\n{hourly_text}'
 
-    # Send the grooming report
+    # Send the grooming report to Telegram
     print(f"Sending grooming report to {CHANNEL_ID}...")
     print(f"Caption:\n{caption}")
     await bot.send_photo(
@@ -187,7 +228,30 @@ async def send_grooming_report():
         photo=BytesIO(image_bytes),
         caption=caption
     )
-    print("Report sent successfully!")
+    print("Telegram report sent successfully!")
+    
+    # Build SMS message (shorter, text-only version)
+    sms_message = f"Beaver Creek {date_str}\n"
+    if snow_parts:
+        sms_message += f"Snow: {' | '.join(snow_parts)}\n"
+    
+    # Add condensed hourly (just first 3 hours)
+    hourly = data.get('hourly', {})
+    times = hourly.get('times', [])[:3]
+    temps = hourly.get('temps', [])[:3]
+    feels = hourly.get('feels', [])[:3]
+    if times and temps:
+        sms_message += "Forecast:\n"
+        for i in range(min(3, len(times))):
+            t = times[i]
+            temp = temps[i] if i < len(temps) else "?"
+            feel = feels[i] if i < len(feels) else "?"
+            sms_message += f"{t}: {temp}°F (feels {feel}°)\n"
+    
+    sms_message += "grooming.lumiplan.pro/beaver-creek-grooming-map.pdf"
+    
+    # Send SMS
+    send_sms(sms_message)
 
 if __name__ == '__main__':
     asyncio.run(send_grooming_report())
