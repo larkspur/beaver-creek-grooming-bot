@@ -2,7 +2,7 @@ name: Send Beaver Creek Grooming Report
 
 on:
   schedule:
-    - cron: '45 13 * * *'  # 6:45 AM Mountain Time (UTC-7)
+    - cron: '30 13 * * *'  # 6:30 AM MST (UTC-7)
   workflow_dispatch:  # Allow manual trigger for testing
 
 jobs:
