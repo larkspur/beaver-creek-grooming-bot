@@ -127,17 +127,17 @@ def format_hourly_forecast(hourly):
         return None
     
     lines = []
-    lines.append("Time:  " + "  ".join(f"{times[i]:>5}" for i in range(num_hours)))
-    lines.append("Temp:  " + "  ".join(f"{temps[i]:>4}°" for i in range(min(num_hours, len(temps)))))
+    lines.append("⏰ Time:  " + "  ".join(f"{times[i]:>5}" for i in range(num_hours)))
+    lines.append("🌡️ Temp:  " + "  ".join(f"{temps[i]:>4}°" for i in range(min(num_hours, len(temps)))))
     
     if feels and len(feels) >= num_hours:
-        lines.append("Feels: " + "  ".join(f"{feels[i]:>4}°" for i in range(num_hours)))
+        lines.append("🥶 Feels: " + "  ".join(f"{feels[i]:>4}°" for i in range(num_hours)))
     
     if winds and len(winds) >= num_hours:
-        lines.append("Wind:  " + "  ".join(f"{winds[i]:>5}" for i in range(num_hours)))
+        lines.append("💨 Wind:  " + "  ".join(f"{winds[i]:>5}" for i in range(num_hours)))
     
     if clouds and len(clouds) >= num_hours:
-        lines.append("Cloud: " + "  ".join(f"{clouds[i]:>4}%" for i in range(num_hours)))
+        lines.append("☁️ Cloud: " + "  ".join(f"{clouds[i]:>4}%" for i in range(num_hours)))
     
     return "\n".join(lines)
 
@@ -166,7 +166,7 @@ async def send_grooming_report():
     pdf_document.close()
 
     # Build caption
-    caption = f'Beaver Creek Grooming Report - {date_str}'
+    caption = f'🎿 Beaver Creek Grooming Report - {date_str}'
     
     # Add snow summary
     snow_parts = []
@@ -175,7 +175,7 @@ async def send_grooming_report():
     if data.get('next_5_days'):
         snow_parts.append(f'Next 5 days: {data["next_5_days"]}"')
     if snow_parts:
-        caption += f'\nSnow: {" | ".join(snow_parts)}'
+        caption += f'\n❄️ Snow: {" | ".join(snow_parts)}'
     
     # Add hourly forecast
     hourly_text = format_hourly_forecast(data.get('hourly'))
