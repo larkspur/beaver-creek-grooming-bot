@@ -3,6 +3,7 @@ import requests
 import asyncio
 import fitz  # PyMuPDF
 from io import BytesIO
+from datetime import datetime
 from telegram import Bot
 
 # Configuration from environment variables
@@ -10,9 +11,23 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 CHANNEL_ID = '@bcskireport'
 PDF_URL = 'https://grooming.lumiplan.pro/beaver-creek-grooming-map.pdf'
 
+def get_ordinal_suffix(day):
+    """Return the ordinal suffix for a day (1st, 2nd, 3rd, 4th, etc.)"""
+    if 11 <= day <= 13:
+        return 'th'
+    return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+
+def get_formatted_date():
+    """Return date formatted like 'Jan 31st'"""
+    now = datetime.now()
+    day = now.day
+    suffix = get_ordinal_suffix(day)
+    return now.strftime(f'%b {day}{suffix}')
+
 async def send_grooming_report():
     """Download the Beaver Creek grooming PDF, convert to image, and send to Telegram."""
     bot = Bot(token=BOT_TOKEN)
+    date_str = get_formatted_date()
 
     # Download the PDF
     print(f"Downloading PDF from {PDF_URL}...")
@@ -35,7 +50,7 @@ async def send_grooming_report():
     await bot.send_photo(
         chat_id=CHANNEL_ID,
         photo=BytesIO(image_bytes),
-        caption='🎿 Beaver Creek Grooming Report'
+        caption=f'🎿 Beaver Creek Grooming Report - {date_str}'
     )
     print("Report sent successfully!")
 
