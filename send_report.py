@@ -29,8 +29,8 @@ def get_formatted_date():
     suffix = get_ordinal_suffix(day)
     return now.strftime(f'%b {day}{suffix}')
 
-def get_snow_and_weather_data():
-    """Fetch snow data and hourly forecast from OpenSnow."""
+def get_opensnow_data():
+    """Fetch snow and current weather data from OpenSnow."""
     try:
         print(f"Fetching data from {OPENSNOW_URL}...")
         headers = {
@@ -42,101 +42,55 @@ def get_snow_and_weather_data():
         soup = BeautifulSoup(response.text, 'html.parser')
         text = soup.get_text()
         
-        # Parse snow data
-        last_24h = None
-        next_5_days = None
+        data = {}
         
+        # Parse snow data
         match_24h = re.search(r'Last 24 Hours\s*(\d+)"', text)
         if match_24h:
-            last_24h = match_24h.group(1)
+            data['last_24h'] = match_24h.group(1)
         
         match_next = re.search(r'Next 1-5 Days\s*(\d+)"', text)
         if match_next:
-            next_5_days = match_next.group(1)
+            data['next_5_days'] = match_next.group(1)
         
-        # Parse hourly forecast from the table
-        # Look for the hourly data pattern
-        hourly_data = []
-        
-        # Find temperature row - look for pattern like "Temperature °F" followed by numbers
-        temp_match = re.search(r'Temperature\s*°?F?\s*([\d\s]+?)(?=Feels Like)', text, re.DOTALL)
-        feels_match = re.search(r'Feels Like\s*°?F?\s*([\d\s-]+?)(?=Rel|Humidity)', text, re.DOTALL)
-        wind_match = re.search(r'Wind Speed\s*mph\s*([NSEW\d\s]+?)(?=Wind Gust)', text, re.DOTALL)
-        cloud_match = re.search(r'Cloud Cover\s*%?\s*([\d\s]+?)(?=How|$)', text, re.DOTALL)
-        
-        temps = []
-        feels = []
-        winds = []
-        clouds = []
-        
+        # Parse current conditions from "Right Now" section
+        # Looking for patterns like "19 °F" and "feels like 10 °F"
+        temp_match = re.search(r'Right Now.*?(\d+)\s*°F', text, re.DOTALL)
         if temp_match:
-            temps = re.findall(r'\d+', temp_match.group(1))[:6]
+            data['temp'] = temp_match.group(1)
+        
+        feels_match = re.search(r'feels like\s*(\d+)\s*°F', text, re.IGNORECASE)
         if feels_match:
-            feels = re.findall(r'-?\d+', feels_match.group(1))[:6]
+            data['feels_like'] = feels_match.group(1)
+        
+        wind_match = re.search(r'(\d+)\s*mph.*?([NSEW]+)\s*gusts', text, re.IGNORECASE)
         if wind_match:
-            winds = re.findall(r'[NSEW]+\d+', wind_match.group(1))[:6]
-        if cloud_match:
-            clouds = re.findall(r'\d+', cloud_match.group(1))[:6]
+            data['wind_speed'] = wind_match.group(1)
+            data['wind_dir'] = wind_match.group(2)
         
-        # Get time headers
-        time_match = re.search(r'(\d+[ap])\s+\w+\s+(\d+[ap])\s+\w+\s+(\d+[ap])\s+\w+\s+(\d+[ap])\s+\w+\s+(\d+[ap])\s+\w+\s+(\d+[ap])', text)
-        times = []
-        if time_match:
-            times = list(time_match.groups())[:6]
+        gust_match = re.search(r'gusts to\s*(\d+)', text, re.IGNORECASE)
+        if gust_match:
+            data['wind_gust'] = gust_match.group(1)
         
-        hourly = {
-            'times': times,
-            'temps': temps,
-            'feels': feels,
-            'winds': winds,
-            'clouds': clouds
-        }
+        # Get weather description (Clear, Cloudy, etc.)
+        weather_match = re.search(r'(Clear|Cloudy|Snow|Rain|Partly Cloudy|Overcast)', text, re.IGNORECASE)
+        if weather_match:
+            data['weather'] = weather_match.group(1).title()
         
-        print(f"Snow: 24h={last_24h}\", Next 5 days={next_5_days}\"")
-        print(f"Hourly temps: {temps}")
-        
-        return last_24h, next_5_days, hourly
+        print(f"Data fetched: {data}")
+        return data
         
     except Exception as e:
         print(f"Error fetching data: {e}")
-        return None, None, None
-
-def format_hourly_forecast(hourly):
-    """Format hourly forecast as text."""
-    if not hourly or not hourly.get('temps'):
-        return None
-    
-    lines = []
-    
-    # Time header
-    if hourly['times']:
-        lines.append("⏰ " + "  ".join(f"{t:>4}" for t in hourly['times'][:6]))
-    
-    # Temperature
-    if hourly['temps']:
-        lines.append("🌡️ " + "  ".join(f"{t:>3}°" for t in hourly['temps'][:6]))
-    
-    # Feels like
-    if hourly['feels']:
-        lines.append("🥶 " + "  ".join(f"{f:>3}°" for f in hourly['feels'][:6]))
-    
-    # Wind
-    if hourly['winds']:
-        lines.append("💨 " + "  ".join(f"{w:>4}" for w in hourly['winds'][:6]))
-    
-    # Cloud cover
-    if hourly['clouds']:
-        lines.append("☁️ " + "  ".join(f"{c:>3}%" for c in hourly['clouds'][:6]))
-    
-    return "\n".join(lines) if lines else None
+        return {}
 
 async def send_grooming_report():
     """Download the Beaver Creek grooming PDF, convert to image, and send to Telegram."""
     bot = Bot(token=BOT_TOKEN)
     date_str = get_formatted_date()
     
-    # Get snow and weather data
-    last_24h, next_5_days, hourly = get_snow_and_weather_data()
+    # Get OpenSnow data
+    data = get_opensnow_data()
 
     # Download the PDF
     print(f"Downloading PDF from {PDF_URL}...")
@@ -154,25 +108,41 @@ async def send_grooming_report():
     image_bytes = pix.tobytes("png")
     pdf_document.close()
 
-    # Build caption with snow data
-    caption = f'🎿 Beaver Creek Grooming Report - {date_str}'
+    # Build caption
+    caption = f'Beaver Creek Grooming Report - {date_str}'
     
     # Add snow summary
-    if last_24h is not None or next_5_days is not None:
-        snow_info = []
-        if last_24h is not None:
-            snow_info.append(f'Last 24hrs: {last_24h}"')
-        if next_5_days is not None:
-            snow_info.append(f'Next 5 days: {next_5_days}"')
-        caption += f'\n❄️ {" | ".join(snow_info)}'
+    snow_parts = []
+    if data.get('last_24h'):
+        snow_parts.append(f'Last 24hrs: {data["last_24h"]}"')
+    if data.get('next_5_days'):
+        snow_parts.append(f'Next 5 days: {data["next_5_days"]}"')
+    if snow_parts:
+        caption += f'\nSnow: {" | ".join(snow_parts)}'
     
-    # Add hourly forecast
-    hourly_text = format_hourly_forecast(hourly)
-    if hourly_text:
-        caption += f'\n\n{hourly_text}'
+    # Add current conditions
+    conditions = []
+    if data.get('temp'):
+        temp_str = f'{data["temp"]}°F'
+        if data.get('feels_like'):
+            temp_str += f' (feels {data["feels_like"]}°F)'
+        conditions.append(f'Temp: {temp_str}')
+    
+    if data.get('weather'):
+        conditions.append(f'Sky: {data["weather"]}')
+    
+    if data.get('wind_speed'):
+        wind_str = f'{data.get("wind_dir", "")}{data["wind_speed"]}mph'
+        if data.get('wind_gust'):
+            wind_str += f', gusts {data["wind_gust"]}mph'
+        conditions.append(f'Wind: {wind_str}')
+    
+    if conditions:
+        caption += '\n' + '\n'.join(conditions)
 
     # Send the grooming report
     print(f"Sending grooming report to {CHANNEL_ID}...")
+    print(f"Caption: {caption}")
     await bot.send_photo(
         chat_id=CHANNEL_ID,
         photo=BytesIO(image_bytes),
