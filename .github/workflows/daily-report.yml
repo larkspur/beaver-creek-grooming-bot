@@ -17,7 +17,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install python-telegram-bot requests PyMuPDF playwright twilio
+          pip install python-telegram-bot requests PyMuPDF playwright
           playwright install chromium
           playwright install-deps chromium
 
@@ -25,7 +25,6 @@ jobs:
         run: python send_report.py
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+          SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMS_RECIPIENTS: ${{ secrets.SMS_RECIPIENTS }}

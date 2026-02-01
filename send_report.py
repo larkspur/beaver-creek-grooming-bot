@@ -2,13 +2,14 @@ import os
 import re
 import requests
 import asyncio
+import smtplib
 import fitz  # PyMuPDF
 from io import BytesIO
+from email.mime.text import MIMEText
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Bot
 from playwright.async_api import async_playwright
-from twilio.rest import Client
 
 # Configuration from environment variables
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -16,16 +17,15 @@ CHANNEL_ID = '@bcskireport'
 PDF_URL = 'https://grooming.lumiplan.pro/beaver-creek-grooming-map.pdf'
 OPENSNOW_URL = 'https://opensnow.com/location/beavercreek/snow-summary'
 
-# Twilio SMS configuration
-TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
-TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
-TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
-SMS_RECIPIENTS = os.environ.get('SMS_RECIPIENTS', '')
+# Email-to-SMS configuration
+SMTP_EMAIL = os.environ.get('SMTP_EMAIL')  # Your Gmail address
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')  # Gmail App Password
+SMS_RECIPIENTS = os.environ.get('SMS_RECIPIENTS', '')  # Comma-separated email-to-SMS addresses
 
 def send_sms(message):
-    """Send SMS via Twilio."""
-    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN or not TWILIO_PHONE_NUMBER:
-        print("Twilio not configured, skipping SMS...")
+    """Send SMS via email-to-SMS gateway."""
+    if not SMTP_EMAIL or not SMTP_PASSWORD:
+        print("Email-to-SMS not configured, skipping...")
         return
 
     if not SMS_RECIPIENTS:
@@ -38,21 +38,22 @@ def send_sms(message):
         return
 
     try:
-        print(f"Sending SMS to {len(recipients)} recipient(s) via Twilio...")
-        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        print(f"Sending SMS to {len(recipients)} recipient(s) via email-to-SMS...")
+        
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
 
         for recipient in recipients:
-            # Ensure phone number has + prefix
-            if not recipient.startswith('+'):
-                recipient = '+1' + recipient  # Assume US number
+            msg = MIMEText(message)
+            msg['From'] = SMTP_EMAIL
+            msg['To'] = recipient
+            msg['Subject'] = ''
+            
+            server.sendmail(SMTP_EMAIL, recipient, msg.as_string())
+            print(f"SMS sent to {recipient}")
 
-            message_response = client.messages.create(
-                body=message,
-                from_=TWILIO_PHONE_NUMBER,
-                to=recipient
-            )
-            print(f"SMS sent to {recipient}, SID: {message_response.sid}")
-
+        server.quit()
         print("All SMS messages sent successfully!")
     except Exception as e:
         print(f"Error sending SMS: {e}")
