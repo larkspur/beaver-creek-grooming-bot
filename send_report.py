@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 import asyncio
 import fitz  # PyMuPDF
@@ -6,7 +7,7 @@ from io import BytesIO
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Bot
-from playwright.async_api import async_playwright
+from bs4 import BeautifulSoup
 
 # Configuration from environment variables
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -28,54 +29,48 @@ def get_formatted_date():
     suffix = get_ordinal_suffix(day)
     return now.strftime(f'%b {day}{suffix}')
 
-async def capture_snow_summary():
-    """Capture a screenshot of the OpenSnow snow summary chart."""
+def get_snow_data():
+    """Fetch snow data from OpenSnow."""
     try:
-        print(f"Capturing snow summary from {OPENSNOW_URL}...")
+        print(f"Fetching snow data from {OPENSNOW_URL}...")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        }
+        response = requests.get(OPENSNOW_URL, headers=headers, timeout=15)
+        response.raise_for_status()
         
-        async with async_playwright() as p:
-            browser = await p.chromium.launch()
-            page = await browser.new_page(viewport={'width': 1200, 'height': 800})
+        soup = BeautifulSoup(response.text, 'html.parser')
+        text = soup.get_text()
+        
+        # Parse the snow data from the page text
+        # Looking for patterns like "Last 24 Hours 0"" and "Next 1-5 Days 0""
+        last_24h = None
+        next_5_days = None
+        
+        # Find "Last 24 Hours" followed by a number
+        match_24h = re.search(r'Last 24 Hours\s*(\d+)"', text)
+        if match_24h:
+            last_24h = match_24h.group(1)
+        
+        # Find "Next 1-5 Days" followed by a number  
+        match_next = re.search(r'Next 1-5 Days\s*(\d+)"', text)
+        if match_next:
+            next_5_days = match_next.group(1)
             
-            await page.goto(OPENSNOW_URL, wait_until='networkidle')
-            
-            # Wait for the page to fully load
-            await page.wait_for_timeout(3000)
-            
-            # Dismiss any cookie banner if present
-            try:
-                cookie_btn = page.locator('text=Accept Cookies')
-                if await cookie_btn.count() > 0:
-                    await cookie_btn.click()
-                    await page.wait_for_timeout(500)
-            except:
-                pass
-            
-            # Scroll to top to ensure we capture the right area
-            await page.evaluate("window.scrollTo(0, 0)")
-            await page.wait_for_timeout(500)
-            
-            # Capture just the Snow Summary chart section
-            # The chart with bars starts after the header/nav (~y=200) and is about 220px tall
-            screenshot_bytes = await page.screenshot(
-                clip={'x': 30, 'y': 195, 'width': 1140, 'height': 230}
-            )
-            
-            await browser.close()
-            print("Snow summary captured successfully!")
-            return screenshot_bytes
-            
+        print(f"Snow data: Last 24h={last_24h}\", Next 5 days={next_5_days}\"")
+        return last_24h, next_5_days
+        
     except Exception as e:
-        print(f"Error capturing snow summary: {e}")
-        return None
+        print(f"Error fetching snow data: {e}")
+        return None, None
 
 async def send_grooming_report():
     """Download the Beaver Creek grooming PDF, convert to image, and send to Telegram."""
     bot = Bot(token=BOT_TOKEN)
     date_str = get_formatted_date()
     
-    # Capture snow summary screenshot
-    snow_screenshot = await capture_snow_summary()
+    # Get snow data
+    last_24h, next_5_days = get_snow_data()
 
     # Download the PDF
     print(f"Downloading PDF from {PDF_URL}...")
@@ -93,17 +88,16 @@ async def send_grooming_report():
     image_bytes = pix.tobytes("png")
     pdf_document.close()
 
-    # Build caption
+    # Build caption with snow data
     caption = f'🎿 Beaver Creek Grooming Report - {date_str}'
-
-    # Send snow summary first if available
-    if snow_screenshot:
-        print(f"Sending snow summary to {CHANNEL_ID}...")
-        await bot.send_photo(
-            chat_id=CHANNEL_ID,
-            photo=BytesIO(snow_screenshot),
-            caption=f'❄️ Snow Summary - {date_str}'
-        )
+    
+    if last_24h is not None or next_5_days is not None:
+        snow_info = []
+        if last_24h is not None:
+            snow_info.append(f'Last 24hrs: {last_24h}"')
+        if next_5_days is not None:
+            snow_info.append(f'Next 5 days: {next_5_days}"')
+        caption += f'\n❄️ {" | ".join(snow_info)}'
 
     # Send the grooming report
     print(f"Sending grooming report to {CHANNEL_ID}...")
