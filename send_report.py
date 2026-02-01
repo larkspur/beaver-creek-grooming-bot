@@ -39,82 +39,63 @@ async def get_opensnow_data():
             page = await browser.new_page()
             
             await page.goto(OPENSNOW_URL, wait_until='networkidle')
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(3000)
             
             data = {}
             
-            # Get snow summary data
-            try:
-                last_24h = await page.locator('text=Last 24 Hours').locator('..').locator('..').inner_text()
-                match = re.search(r'(\d+)"', last_24h)
-                if match:
-                    data['last_24h'] = match.group(1)
-            except:
-                pass
+            # Get full page text for parsing
+            page_text = await page.inner_text('body')
+            print(f"Page text length: {len(page_text)}")
             
-            try:
-                next_5 = await page.locator('text=Next 1-5 Days').locator('..').inner_text()
-                match = re.search(r'(\d+)"', next_5)
-                if match:
-                    data['next_5_days'] = match.group(1)
-            except:
-                pass
+            # Parse snow data
+            match_24h = re.search(r'Last 24 Hours\s*(\d+)"', page_text)
+            if match_24h:
+                data['last_24h'] = match_24h.group(1)
             
-            # Get hourly forecast table
-            # Find all table rows in the hourly forecast section
+            match_next = re.search(r'Next 1-5 Days\s*(\d+)"', page_text)
+            if match_next:
+                data['next_5_days'] = match_next.group(1)
+            
+            # Parse hourly forecast
+            # Look for the Hourly Forecast section
             hourly = {'times': [], 'temps': [], 'feels': [], 'winds': [], 'clouds': []}
             
-            try:
-                # Get time headers from table header row
-                table = page.locator('table').first
-                
-                # Get header row with times
-                header_cells = await table.locator('th').all()
-                for cell in header_cells[1:7]:  # Skip first column, get next 6
-                    text = await cell.inner_text()
-                    time_match = re.search(r'(\d+[ap])', text.lower())
-                    if time_match:
-                        hourly['times'].append(time_match.group(1))
-                
-                # Get all rows
-                rows = await table.locator('tr').all()
-                
-                for row in rows:
-                    row_text = await row.inner_text()
-                    cells = await row.locator('td').all()
-                    
-                    if 'Temperature' in row_text and '°F' in row_text:
-                        for cell in cells[:6]:
-                            text = await cell.inner_text()
-                            num = re.search(r'(\d+)', text)
-                            if num:
-                                hourly['temps'].append(num.group(1))
-                    
-                    elif 'Feels Like' in row_text:
-                        for cell in cells[:6]:
-                            text = await cell.inner_text()
-                            num = re.search(r'(-?\d+)', text)
-                            if num:
-                                hourly['feels'].append(num.group(1))
-                    
-                    elif 'Wind Speed' in row_text:
-                        for cell in cells[:6]:
-                            text = await cell.inner_text()
-                            wind = re.search(r'([NSEW]+\d+)', text)
-                            if wind:
-                                hourly['winds'].append(wind.group(1))
-                    
-                    elif 'Cloud Cover' in row_text:
-                        for cell in cells[:6]:
-                            text = await cell.inner_text()
-                            num = re.search(r'(\d+)', text)
-                            if num:
-                                hourly['clouds'].append(num.group(1))
-                
-                data['hourly'] = hourly
-                
-            except Exception as e:
-                print(f"Error parsing hourly table: {e}")
+            # Find time slots like "8p Sat", "9p Sat", etc.
+            time_pattern = r'(\d{1,2}[ap])\s+(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)'
+            times = re.findall(time_pattern, page_text)
+            if times:
+                hourly['times'] = times[:6]
+                print(f"Found times: {hourly['times']}")
+            
+            # Find Temperature row - looking for pattern after "Temperature °F"
+            temp_section = re.search(r'Temperature\s*°?F\s*([\d\s]+?)(?=Feels Like)', page_text, re.DOTALL)
+            if temp_section:
+                temps = re.findall(r'\b(\d{1,2})\b', temp_section.group(1))
+                hourly['temps'] = temps[:6]
+                print(f"Found temps: {hourly['temps']}")
+            
+            # Find Feels Like row
+            feels_section = re.search(r'Feels Like\s*°?F\s*([-\d\s]+?)(?=Rel|Humidity)', page_text, re.DOTALL)
+            if feels_section:
+                feels = re.findall(r'(-?\d{1,2})\b', feels_section.group(1))
+                hourly['feels'] = feels[:6]
+                print(f"Found feels: {hourly['feels']}")
+            
+            # Find Wind Speed row
+            wind_section = re.search(r'Wind Speed\s*mph\s*([A-Za-z\d\s]+?)(?=Wind Gust)', page_text, re.DOTALL)
+            if wind_section:
+                winds = re.findall(r'([NSEW]{1,3}\d{1,2})', wind_section.group(1))
+                hourly['winds'] = winds[:6]
+                print(f"Found winds: {hourly['winds']}")
+            
+            # Find Cloud Cover row
+            cloud_section = re.search(r'Cloud Cover\s*%?\s*([\d\s]+?)(?=How to read|$)', page_text, re.DOTALL)
+            if cloud_section:
+                clouds = re.findall(r'\b(\d{1,3})\b', cloud_section.group(1))
+                hourly['clouds'] = clouds[:6]
+                print(f"Found clouds: {hourly['clouds']}")
+            
+            data['hourly'] = hourly
             
             await browser.close()
             print(f"Data fetched: {data}")
@@ -122,6 +103,8 @@ async def get_opensnow_data():
         
     except Exception as e:
         print(f"Error fetching data: {e}")
+        import traceback
+        traceback.print_exc()
         return {}
 
 def format_hourly_forecast(hourly):
@@ -129,32 +112,34 @@ def format_hourly_forecast(hourly):
     if not hourly:
         return None
     
-    lines = []
-    num_hours = min(6, len(hourly.get('temps', [])))
+    times = hourly.get('times', [])
+    temps = hourly.get('temps', [])
+    feels = hourly.get('feels', [])
+    winds = hourly.get('winds', [])
+    clouds = hourly.get('clouds', [])
     
+    # Need at least times and temps
+    if not times or not temps:
+        return None
+    
+    num_hours = min(6, len(times), len(temps))
     if num_hours == 0:
         return None
     
-    # Build each hour as a column
-    times = hourly.get('times', [])[:num_hours]
-    temps = hourly.get('temps', [])[:num_hours]
-    feels = hourly.get('feels', [])[:num_hours]
-    winds = hourly.get('winds', [])[:num_hours]
-    clouds = hourly.get('clouds', [])[:num_hours]
+    lines = []
+    lines.append("Time:  " + "  ".join(f"{times[i]:>5}" for i in range(num_hours)))
+    lines.append("Temp:  " + "  ".join(f"{temps[i]:>4}°" for i in range(min(num_hours, len(temps)))))
     
-    # Format as simple rows with labels
-    if times:
-        lines.append("Time:  " + "  ".join(f"{t:>5}" for t in times))
-    if temps:
-        lines.append("Temp:  " + "  ".join(f"{t:>4}°" for t in temps))
-    if feels:
-        lines.append("Feels: " + "  ".join(f"{f:>4}°" for f in feels))
-    if winds:
-        lines.append("Wind:  " + "  ".join(f"{w:>5}" for w in winds))
-    if clouds:
-        lines.append("Cloud: " + "  ".join(f"{c:>4}%" for c in clouds))
+    if feels and len(feels) >= num_hours:
+        lines.append("Feels: " + "  ".join(f"{feels[i]:>4}°" for i in range(num_hours)))
     
-    return "\n".join(lines) if lines else None
+    if winds and len(winds) >= num_hours:
+        lines.append("Wind:  " + "  ".join(f"{winds[i]:>5}" for i in range(num_hours)))
+    
+    if clouds and len(clouds) >= num_hours:
+        lines.append("Cloud: " + "  ".join(f"{clouds[i]:>4}%" for i in range(num_hours)))
+    
+    return "\n".join(lines)
 
 async def send_grooming_report():
     """Download the Beaver Creek grooming PDF, convert to image, and send to Telegram."""
