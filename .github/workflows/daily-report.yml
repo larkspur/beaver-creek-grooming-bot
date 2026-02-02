@@ -17,7 +17,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install python-telegram-bot requests PyMuPDF playwright instagrapi Pillow
+          pip install python-telegram-bot requests PyMuPDF playwright Pillow
           playwright install chromium
           playwright install-deps chromium
 
@@ -28,5 +28,5 @@ jobs:
           SMTP_EMAIL: ${{ secrets.GMAIL_USER }}
           SMTP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
-          INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
