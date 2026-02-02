@@ -2,18 +2,12 @@ import os
 import re
 import requests
 import asyncio
-import smtplib
-import tempfile
 import fitz  # PyMuPDF
 from io import BytesIO
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Bot
 from playwright.async_api import async_playwright
-# Instagram Graph API (official)
 
 # Configuration from environment variables
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -21,108 +15,8 @@ CHANNEL_ID = '@bcskireport'
 PDF_URL = 'https://grooming.lumiplan.pro/beaver-creek-grooming-map.pdf'
 OPENSNOW_URL = 'https://opensnow.com/location/beavercreek/snow-summary'
 
-# Email-to-SMS configuration
-SMTP_EMAIL = os.environ.get('SMTP_EMAIL')  # Your Gmail address
-SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')  # Gmail App Password
-GOOGLE_SHEET_ID = os.environ.get('GOOGLE_SHEET_ID', '')  # Google Sheet ID with form responses
-
 # Instagram configuration (using instagrapi with session)
 INSTAGRAM_SESSION = os.environ.get('INSTAGRAM_SESSION', '')
-
-# Carrier to MMS gateway mapping (for sending images)
-CARRIER_GATEWAYS = {
-    'att': '@mms.att.net',
-    'at&t': '@mms.att.net',
-    'verizon': '@vzwpix.com',
-    't-mobile': '@tmomail.net',
-    'tmobile': '@tmomail.net',
-    'sprint': '@pm.sprint.com',
-    'us cellular': '@mms.uscc.net',
-    'cricket': '@mms.cricketwireless.net',
-    'metro': '@mymetropcs.com',
-    'metro pcs': '@mymetropcs.com',
-    'boost': '@myboostmobile.com',
-    'boost mobile': '@myboostmobile.com',
-}
-
-def get_recipients_from_sheet():
-    """Fetch SMS recipients from Google Sheet."""
-    if not GOOGLE_SHEET_ID:
-        print("Google Sheet ID not configured")
-        return []
-    
-    try:
-        # Public Google Sheet CSV export URL
-        url = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv"
-        response = requests.get(url)
-        response.raise_for_status()
-        
-        recipients = []
-        lines = response.text.strip().split('\n')
-        
-        # Skip header row
-        for line in lines[1:]:
-            parts = line.split(',')
-            if len(parts) >= 3:
-                # Assuming columns: Timestamp, Phone Number, Carrier
-                phone = re.sub(r'\D', '', parts[1])  # Remove non-digits
-                carrier = parts[2].lower().strip().strip('"')
-                
-                if phone and carrier in CARRIER_GATEWAYS:
-                    email = f"{phone}{CARRIER_GATEWAYS[carrier]}"
-                    recipients.append(email)
-                    print(f"Found recipient: {email}")
-        
-        return recipients
-    except Exception as e:
-        print(f"Error fetching recipients from sheet: {e}")
-        return []
-
-def send_mms(message, image_bytes=None):
-    """Send MMS with image via email-to-MMS gateway."""
-    if not SMTP_EMAIL or not SMTP_PASSWORD:
-        print("Email-to-MMS not configured, skipping...")
-        return
-
-    # Get recipients from Google Sheet
-    recipients = get_recipients_from_sheet()
-    
-    if not recipients:
-        print("No MMS recipients found, skipping...")
-        return
-
-    try:
-        print(f"Sending MMS to {len(recipients)} recipient(s)...")
-        
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(SMTP_EMAIL, SMTP_PASSWORD)
-
-        for recipient in recipients:
-            # Create multipart message for MMS
-            msg = MIMEMultipart()
-            msg['From'] = SMTP_EMAIL
-            msg['To'] = recipient
-            msg['Subject'] = 'BC Report'
-            
-            # Add text
-            msg.attach(MIMEText(message))
-            
-            # Add image if provided
-            if image_bytes:
-                img = MIMEImage(image_bytes, _subtype='png')
-                img.add_header('Content-Disposition', 'attachment', filename='grooming-map.png')
-                msg.attach(img)
-            
-            server.sendmail(SMTP_EMAIL, recipient, msg.as_string())
-            print(f"MMS sent to {recipient}")
-
-        server.quit()
-        print("All MMS messages sent successfully!")
-    except Exception as e:
-        print(f"Error sending MMS: {e}")
-        import traceback
-        traceback.print_exc()
 
 def post_to_instagram(image_bytes, caption):
     """Post image to Instagram using instagrapi with saved session."""
@@ -337,16 +231,6 @@ async def send_grooming_report():
         caption=caption
     )
     print("Telegram report sent successfully!")
-
-    # Build MMS message
-    mms_message = f"BC Grooming {date_str}"
-    if data.get('last_24h'):
-        mms_message += f"\nSnow 24h: {data['last_24h']}\""
-    if data.get('next_5_days'):
-        mms_message += f" | Next 5d: {data['next_5_days']}\""
-
-    # Send MMS with image
-    send_mms(mms_message, image_bytes)
     
     # Build Instagram caption with hashtags
     ig_caption = f'🎿 Beaver Creek Grooming Report - {date_str}\n\n'
