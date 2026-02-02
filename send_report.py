@@ -26,9 +26,8 @@ SMTP_EMAIL = os.environ.get('SMTP_EMAIL')  # Your Gmail address
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')  # Gmail App Password
 GOOGLE_SHEET_ID = os.environ.get('GOOGLE_SHEET_ID', '')  # Google Sheet ID with form responses
 
-# Instagram Graph API configuration
-INSTAGRAM_ACCESS_TOKEN = os.environ.get('INSTAGRAM_ACCESS_TOKEN', '')
-INSTAGRAM_ACCOUNT_ID = os.environ.get('INSTAGRAM_ACCOUNT_ID', '')  # 17841480104643966
+# Instagram configuration (using instagrapi with session)
+INSTAGRAM_SESSION = os.environ.get('INSTAGRAM_SESSION', '')
 
 # Carrier to MMS gateway mapping (for sending images)
 CARRIER_GATEWAYS = {
@@ -126,85 +125,46 @@ def send_mms(message, image_bytes=None):
         traceback.print_exc()
 
 def post_to_instagram(image_bytes, caption):
-    """Post image to Instagram using Graph API."""
-    if not INSTAGRAM_ACCESS_TOKEN or not INSTAGRAM_ACCOUNT_ID:
-        print("Instagram Graph API not configured, skipping...")
+    """Post image to Instagram using instagrapi with saved session."""
+    if not INSTAGRAM_SESSION:
+        print("Instagram session not configured, skipping...")
         return
     
     try:
-        print("Uploading image to temporary hosting...")
-        
-        # Convert PNG to JPEG first
+        print("Loading Instagram session...")
+        import base64
+        import json
+        from instagrapi import Client
         from PIL import Image
         from io import BytesIO as PILBytesIO
+        
+        # Load session from base64-encoded JSON
+        session_json = base64.b64decode(INSTAGRAM_SESSION).decode()
+        session_data = json.loads(session_json)
+        
+        # Create client and load session
+        cl = Client()
+        cl.set_settings(session_data)
+        
+        # Verify session works
+        cl.get_timeline_feed()
+        print("Instagram session loaded successfully!")
+        
+        # Convert PNG to JPEG and save to temp file
         img = Image.open(PILBytesIO(image_bytes))
         if img.mode in ('RGBA', 'LA', 'P'):
             img = img.convert('RGB')
-        jpeg_buffer = PILBytesIO()
-        img.save(jpeg_buffer, 'JPEG', quality=95)
-        jpeg_bytes = jpeg_buffer.getvalue()
         
-        # Upload to freeimage.host (free, no API key needed)
-        import base64
-        image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
+        jpeg_path = '/tmp/grooming-map.jpg'
+        img.save(jpeg_path, 'JPEG', quality=95)
         
-        upload_response = requests.post(
-            'https://freeimage.host/api/1/upload',
-            data={
-                'key': '6d207e02198a847aa98d0a2a901485a5',  # Public demo key
-                'action': 'upload',
-                'source': image_base64,
-                'format': 'json'
-            }
-        )
+        # Upload to Instagram
+        print("Uploading to Instagram...")
+        media = cl.photo_upload(jpeg_path, caption)
+        print(f"Instagram post successful! Media ID: {media.pk}")
         
-        if upload_response.status_code != 200:
-            print(f"Failed to upload image: {upload_response.status_code} {upload_response.text}")
-            return
-        
-        upload_data = upload_response.json()
-        if upload_data.get('status_code') != 200:
-            print(f"Upload failed: {upload_data}")
-            return
-            
-        image_url = upload_data['image']['url']
-        print(f"Image uploaded to: {image_url}")
-        
-        # Step 1: Create media container
-        print("Creating Instagram media container...")
-        container_response = requests.post(
-            f'https://graph.facebook.com/v18.0/{INSTAGRAM_ACCOUNT_ID}/media',
-            params={
-                'image_url': image_url,
-                'caption': caption,
-                'access_token': INSTAGRAM_ACCESS_TOKEN
-            }
-        )
-        container_data = container_response.json()
-        
-        if 'error' in container_data:
-            print(f"Error creating container: {container_data['error']}")
-            return
-        
-        container_id = container_data['id']
-        print(f"Container created: {container_id}")
-        
-        # Step 2: Publish the container
-        print("Publishing to Instagram...")
-        publish_response = requests.post(
-            f'https://graph.facebook.com/v18.0/{INSTAGRAM_ACCOUNT_ID}/media_publish',
-            params={
-                'creation_id': container_id,
-                'access_token': INSTAGRAM_ACCESS_TOKEN
-            }
-        )
-        publish_data = publish_response.json()
-        
-        if 'error' in publish_data:
-            print(f"Error publishing: {publish_data['error']}")
-            return
-        
-        print(f"Instagram post successful! Post ID: {publish_data.get('id')}")
+        # Cleanup
+        os.unlink(jpeg_path)
         
     except Exception as e:
         print(f"Error posting to Instagram: {e}")
