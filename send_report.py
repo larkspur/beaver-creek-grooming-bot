@@ -6,6 +6,8 @@ import smtplib
 import fitz  # PyMuPDF
 from io import BytesIO
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Bot
@@ -22,20 +24,20 @@ SMTP_EMAIL = os.environ.get('SMTP_EMAIL')  # Your Gmail address
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')  # Gmail App Password
 GOOGLE_SHEET_ID = os.environ.get('GOOGLE_SHEET_ID', '')  # Google Sheet ID with form responses
 
-# Carrier to SMS/MMS gateway mapping
+# Carrier to MMS gateway mapping (for sending images)
 CARRIER_GATEWAYS = {
-    'att': '@txt.att.net',
-    'at&t': '@txt.att.net',
-    'verizon': '@vtext.com',
+    'att': '@mms.att.net',
+    'at&t': '@mms.att.net',
+    'verizon': '@vzwpix.com',
     't-mobile': '@tmomail.net',
     'tmobile': '@tmomail.net',
-    'sprint': '@messaging.sprintpcs.com',
-    'us cellular': '@email.uscc.net',
-    'cricket': '@sms.cricketwireless.net',
+    'sprint': '@pm.sprint.com',
+    'us cellular': '@mms.uscc.net',
+    'cricket': '@mms.cricketwireless.net',
     'metro': '@mymetropcs.com',
     'metro pcs': '@mymetropcs.com',
-    'boost': '@sms.myboostmobile.com',
-    'boost mobile': '@sms.myboostmobile.com',
+    'boost': '@myboostmobile.com',
+    'boost mobile': '@myboostmobile.com',
 }
 
 def get_recipients_from_sheet():
@@ -71,39 +73,51 @@ def get_recipients_from_sheet():
         print(f"Error fetching recipients from sheet: {e}")
         return []
 
-def send_sms(message):
-    """Send SMS via email-to-SMS gateway."""
+def send_mms(message, image_bytes=None):
+    """Send MMS with image via email-to-MMS gateway."""
     if not SMTP_EMAIL or not SMTP_PASSWORD:
-        print("Email-to-SMS not configured, skipping...")
+        print("Email-to-MMS not configured, skipping...")
         return
 
     # Get recipients from Google Sheet
     recipients = get_recipients_from_sheet()
     
     if not recipients:
-        print("No SMS recipients found, skipping...")
+        print("No MMS recipients found, skipping...")
         return
 
     try:
-        print(f"Sending SMS to {len(recipients)} recipient(s) via email-to-SMS...")
+        print(f"Sending MMS to {len(recipients)} recipient(s)...")
         
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(SMTP_EMAIL, SMTP_PASSWORD)
 
         for recipient in recipients:
-            msg = MIMEText(message)
+            # Create multipart message for MMS
+            msg = MIMEMultipart()
             msg['From'] = SMTP_EMAIL
             msg['To'] = recipient
             msg['Subject'] = 'BC Report'
             
+            # Add text
+            msg.attach(MIMEText(message))
+            
+            # Add image if provided
+            if image_bytes:
+                img = MIMEImage(image_bytes, _subtype='png')
+                img.add_header('Content-Disposition', 'attachment', filename='grooming-map.png')
+                msg.attach(img)
+            
             server.sendmail(SMTP_EMAIL, recipient, msg.as_string())
-            print(f"SMS sent to {recipient}")
+            print(f"MMS sent to {recipient}")
 
         server.quit()
-        print("All SMS messages sent successfully!")
+        print("All MMS messages sent successfully!")
     except Exception as e:
-        print(f"Error sending SMS: {e}")
+        print(f"Error sending MMS: {e}")
+        import traceback
+        traceback.print_exc()
 
 def get_ordinal_suffix(day):
     """Return the ordinal suffix for a day (1st, 2nd, 3rd, 4th, etc.)"""
@@ -272,16 +286,15 @@ async def send_grooming_report():
     )
     print("Telegram report sent successfully!")
 
-    # Build SMS message (very short - SMS limit is 160 chars)
-    sms_message = f"BC {date_str}"
+    # Build MMS message
+    mms_message = f"BC Grooming {date_str}"
     if data.get('last_24h'):
-        sms_message += f" - Snow 24h: {data['last_24h']}\""
+        mms_message += f"\nSnow 24h: {data['last_24h']}\""
     if data.get('next_5_days'):
-        sms_message += f", 5d: {data['next_5_days']}\""
-    sms_message += " - t.me/bcskireport"
+        mms_message += f" | Next 5d: {data['next_5_days']}\""
 
-    # Send SMS
-    send_sms(sms_message)
+    # Send MMS with image
+    send_mms(mms_message, image_bytes)
 
 if __name__ == '__main__':
     asyncio.run(send_grooming_report())
