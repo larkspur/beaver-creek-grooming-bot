@@ -22,20 +22,20 @@ SMTP_EMAIL = os.environ.get('SMTP_EMAIL')  # Your Gmail address
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')  # Gmail App Password
 GOOGLE_SHEET_ID = os.environ.get('GOOGLE_SHEET_ID', '')  # Google Sheet ID with form responses
 
-# Carrier to email gateway mapping
+# Carrier to MMS gateway mapping (MMS handles longer messages better)
 CARRIER_GATEWAYS = {
-    'att': '@txt.att.net',
-    'at&t': '@txt.att.net',
-    'verizon': '@vtext.com',
+    'att': '@mms.att.net',
+    'at&t': '@mms.att.net',
+    'verizon': '@vzwpix.com',
     't-mobile': '@tmomail.net',
     'tmobile': '@tmomail.net',
-    'sprint': '@messaging.sprintpcs.com',
-    'us cellular': '@email.uscc.net',
-    'cricket': '@sms.cricketwireless.net',
+    'sprint': '@pm.sprint.com',
+    'us cellular': '@mms.uscc.net',
+    'cricket': '@mms.cricketwireless.net',
     'metro': '@mymetropcs.com',
     'metro pcs': '@mymetropcs.com',
-    'boost': '@sms.myboostmobile.com',
-    'boost mobile': '@sms.myboostmobile.com',
+    'boost': '@myboostmobile.com',
+    'boost mobile': '@myboostmobile.com',
 }
 
 def get_recipients_from_sheet():
