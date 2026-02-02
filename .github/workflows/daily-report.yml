@@ -25,6 +25,6 @@ jobs:
         run: python send_report.py
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_EMAIL: ${{ secrets.GMAIL_USER }}
+          SMTP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
