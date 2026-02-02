@@ -144,18 +144,17 @@ def post_to_instagram(image_bytes, caption):
         img.save(jpeg_buffer, 'JPEG', quality=95)
         jpeg_bytes = jpeg_buffer.getvalue()
         
-        # Upload to file.io (temporary file hosting)
+        # Upload to 0x0.st (simple, reliable file hosting)
         upload_response = requests.post(
-            'https://file.io',
+            'https://0x0.st',
             files={'file': ('grooming-map.jpg', jpeg_bytes, 'image/jpeg')}
         )
-        upload_data = upload_response.json()
         
-        if not upload_data.get('success'):
-            print(f"Failed to upload image: {upload_data}")
+        if upload_response.status_code != 200:
+            print(f"Failed to upload image: {upload_response.status_code} {upload_response.text}")
             return
         
-        image_url = upload_data['link']
+        image_url = upload_response.text.strip()
         print(f"Image uploaded to: {image_url}")
         
         # Step 1: Create media container
