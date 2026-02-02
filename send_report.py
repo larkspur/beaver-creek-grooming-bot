@@ -22,20 +22,20 @@ SMTP_EMAIL = os.environ.get('SMTP_EMAIL')  # Your Gmail address
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')  # Gmail App Password
 GOOGLE_SHEET_ID = os.environ.get('GOOGLE_SHEET_ID', '')  # Google Sheet ID with form responses
 
-# Carrier to MMS gateway mapping (MMS handles longer messages better)
+# Carrier to SMS/MMS gateway mapping
 CARRIER_GATEWAYS = {
-    'att': '@mms.att.net',
-    'at&t': '@mms.att.net',
-    'verizon': '@vzwpix.com',
+    'att': '@txt.att.net',
+    'at&t': '@txt.att.net',
+    'verizon': '@vtext.com',
     't-mobile': '@tmomail.net',
     'tmobile': '@tmomail.net',
-    'sprint': '@pm.sprint.com',
-    'us cellular': '@mms.uscc.net',
-    'cricket': '@mms.cricketwireless.net',
+    'sprint': '@messaging.sprintpcs.com',
+    'us cellular': '@email.uscc.net',
+    'cricket': '@sms.cricketwireless.net',
     'metro': '@mymetropcs.com',
     'metro pcs': '@mymetropcs.com',
-    'boost': '@myboostmobile.com',
-    'boost mobile': '@myboostmobile.com',
+    'boost': '@sms.myboostmobile.com',
+    'boost mobile': '@sms.myboostmobile.com',
 }
 
 def get_recipients_from_sheet():
@@ -95,7 +95,7 @@ def send_sms(message):
             msg = MIMEText(message)
             msg['From'] = SMTP_EMAIL
             msg['To'] = recipient
-            msg['Subject'] = ''
+            msg['Subject'] = 'BC Report'
             
             server.sendmail(SMTP_EMAIL, recipient, msg.as_string())
             print(f"SMS sent to {recipient}")
@@ -272,25 +272,13 @@ async def send_grooming_report():
     )
     print("Telegram report sent successfully!")
 
-    # Build SMS message (shorter version)
-    sms_message = f"Beaver Creek {date_str}\n"
-    if snow_parts:
-        sms_message += f"Snow: {' | '.join(snow_parts)}\n"
-
-    # Add condensed hourly (first 3 hours)
-    hourly = data.get('hourly', {})
-    times = hourly.get('times', [])[:3]
-    temps = hourly.get('temps', [])[:3]
-    feels = hourly.get('feels', [])[:3]
-
-    if times and temps:
-        sms_message += "Forecast:\n"
-        for i in range(min(3, len(times))):
-            temp = temps[i] if i < len(temps) else "?"
-            feel = feels[i] if i < len(feels) else "?"
-            sms_message += f"{times[i]}: {temp}°F (feels {feel}°)\n"
-
-    sms_message += "grooming.lumiplan.pro/beaver-creek-grooming-map.pdf"
+    # Build SMS message (very short - SMS limit is 160 chars)
+    sms_message = f"BC {date_str}"
+    if data.get('last_24h'):
+        sms_message += f" - Snow 24h: {data['last_24h']}\""
+    if data.get('next_5_days'):
+        sms_message += f", 5d: {data['next_5_days']}\""
+    sms_message += " - t.me/bcskireport"
 
     # Send SMS
     send_sms(sms_message)
