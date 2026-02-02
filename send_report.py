@@ -144,10 +144,18 @@ def post_to_instagram(image_bytes, caption):
         img.save(jpeg_buffer, 'JPEG', quality=95)
         jpeg_bytes = jpeg_buffer.getvalue()
         
-        # Upload to Telegraph (Telegram's image hosting - reliable from any IP)
+        # Upload to freeimage.host (free, no API key needed)
+        import base64
+        image_base64 = base64.b64encode(jpeg_bytes).decode('utf-8')
+        
         upload_response = requests.post(
-            'https://telegra.ph/upload',
-            files={'file': ('grooming-map.jpg', jpeg_bytes, 'image/jpeg')}
+            'https://freeimage.host/api/1/upload',
+            data={
+                'key': '6d207e02198a847aa98d0a2a901485a5',  # Public demo key
+                'action': 'upload',
+                'source': image_base64,
+                'format': 'json'
+            }
         )
         
         if upload_response.status_code != 200:
@@ -155,11 +163,11 @@ def post_to_instagram(image_bytes, caption):
             return
         
         upload_data = upload_response.json()
-        if isinstance(upload_data, list) and len(upload_data) > 0 and 'src' in upload_data[0]:
-            image_url = 'https://telegra.ph' + upload_data[0]['src']
-        else:
-            print(f"Unexpected upload response: {upload_data}")
+        if upload_data.get('status_code') != 200:
+            print(f"Upload failed: {upload_data}")
             return
+            
+        image_url = upload_data['image']['url']
         print(f"Image uploaded to: {image_url}")
         
         # Step 1: Create media container
