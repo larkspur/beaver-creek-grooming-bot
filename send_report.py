@@ -3,6 +3,7 @@ import re
 import requests
 import asyncio
 import smtplib
+import tempfile
 import fitz  # PyMuPDF
 from io import BytesIO
 from email.mime.text import MIMEText
@@ -12,6 +13,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Bot
 from playwright.async_api import async_playwright
+from instagrapi import Client as InstagramClient
 
 # Configuration from environment variables
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -23,6 +25,10 @@ OPENSNOW_URL = 'https://opensnow.com/location/beavercreek/snow-summary'
 SMTP_EMAIL = os.environ.get('SMTP_EMAIL')  # Your Gmail address
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')  # Gmail App Password
 GOOGLE_SHEET_ID = os.environ.get('GOOGLE_SHEET_ID', '')  # Google Sheet ID with form responses
+
+# Instagram configuration
+INSTAGRAM_USERNAME = os.environ.get('INSTAGRAM_USERNAME', '')
+INSTAGRAM_PASSWORD = os.environ.get('INSTAGRAM_PASSWORD', '')
 
 # Carrier to MMS gateway mapping (for sending images)
 CARRIER_GATEWAYS = {
@@ -116,6 +122,44 @@ def send_mms(message, image_bytes=None):
         print("All MMS messages sent successfully!")
     except Exception as e:
         print(f"Error sending MMS: {e}")
+        import traceback
+        traceback.print_exc()
+
+def post_to_instagram(image_bytes, caption):
+    """Post image to Instagram."""
+    if not INSTAGRAM_USERNAME or not INSTAGRAM_PASSWORD:
+        print("Instagram not configured, skipping...")
+        return
+    
+    try:
+        print("Logging into Instagram...")
+        cl = InstagramClient()
+        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+        
+        # Save image to temp file (instagrapi requires file path)
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            f.write(image_bytes)
+            temp_path = f.name
+        
+        # Convert PNG to JPEG (Instagram prefers JPEG)
+        jpeg_path = temp_path.replace('.png', '.jpg')
+        from PIL import Image
+        img = Image.open(temp_path)
+        # Convert to RGB if necessary (PNG might have alpha channel)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+        img.save(jpeg_path, 'JPEG', quality=95)
+        
+        print("Uploading to Instagram...")
+        cl.photo_upload(jpeg_path, caption)
+        print("Instagram post successful!")
+        
+        # Cleanup temp files
+        os.unlink(temp_path)
+        os.unlink(jpeg_path)
+        
+    except Exception as e:
+        print(f"Error posting to Instagram: {e}")
         import traceback
         traceback.print_exc()
 
@@ -295,6 +339,17 @@ async def send_grooming_report():
 
     # Send MMS with image
     send_mms(mms_message, image_bytes)
+    
+    # Build Instagram caption with hashtags
+    ig_caption = f'🎿 Beaver Creek Grooming Report - {date_str}\n\n'
+    if snow_parts:
+        ig_caption += f'❄️ Snow: {" | ".join(snow_parts)}\n\n'
+    if hourly_text:
+        ig_caption += f'Hourly Forecast:\n{hourly_text}\n\n'
+    ig_caption += '#beavercreek #skiing #colorado #skicolorado #vail #snow #grooming #skireport #powder #winter'
+    
+    # Post to Instagram
+    post_to_instagram(image_bytes, ig_caption)
 
 if __name__ == '__main__':
     asyncio.run(send_grooming_report())
