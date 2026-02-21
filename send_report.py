@@ -12,7 +12,7 @@ from playwright.async_api import async_playwright
 # Configuration from environment variables
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 CHANNEL_ID = '@bcskireport'
-PDF_URL = 'https://grooming.lumiplan.pro/beaver-creek-grooming-map.pdf'
+PDF_URL = 'https://grooming.lumiplan.pro/beaver-ceek-grooming-map.pdf'
 OPENSNOW_URL = 'https://opensnow.com/location/beavercreek/snow-summary'
 
 # Instagram configuration (using instagrapi with session)
@@ -115,9 +115,9 @@ async def get_opensnow_data():
                 print(f"Found times: {hourly['times']}")
 
             # Find Temperature row
-            temp_section = re.search(r'Temperature\s*°?F\s*([\d\s]+?)(?=Feels Like)', page_text, re.DOTALL)
+            temp_section = re.search(r'Temperature\s*°?F\s*([-\d\s]+?)(?=Feels Like)', page_text, re.DOTALL)
             if temp_section:
-                temps = re.findall(r'\b(\d{1,2})\b', temp_section.group(1))
+                temps = re.findall(r'(-?\d{1,2})\b', temp_section.group(1))
                 hourly['temps'] = temps[:6]
                 print(f"Found temps: {hourly['temps']}")
 
