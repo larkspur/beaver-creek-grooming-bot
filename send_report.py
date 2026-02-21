@@ -12,7 +12,7 @@ from playwright.async_api import async_playwright
 # Configuration from environment variables
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 CHANNEL_ID = '@bcskireport'
-PDF_URL = 'https://grooming.lumiplan.pro/beaver-ceek-grooming-map.pdf'
+PDF_URL = 'https://grooming.lumiplan.pro/beaver-creek-grooming-map.pdf'
 OPENSNOW_URL = 'https://opensnow.com/location/beavercreek/snow-summary'
 
 # Instagram configuration (using instagrapi with session)
